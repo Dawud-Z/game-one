@@ -108,7 +108,7 @@ class Bullet {
 
     update(deltaTime) {
         this.x += this.vx * deltaTime;
-        this.y += vy * deltaTime;
+        this.y += this.vy * deltaTime;  // ← FIXED: was "vy" now "this.vy"
 
         // Remove if out of bounds or too old
         return this.x < 0 || this.x > WORLD_SIZE.width || 

@@ -287,10 +287,19 @@
             setupControls() {
                 document.addEventListener('keydown', (e) => {
                     this.keys[e.key.toLowerCase()] = true;
+                    // Space bar for shooting
+                    if (e.code === 'Space') {
+                        e.preventDefault(); // Prevent page scroll
+                        this.mouse.down = true;
+                    }
                 });
 
                 document.addEventListener('keyup', (e) => {
                     this.keys[e.key.toLowerCase()] = false;
+                    // Space bar for shooting
+                    if (e.code === 'Space') {
+                        this.mouse.down = false;
+                    }
                 });
 
                 this.canvas.addEventListener('mousemove', (e) => {
