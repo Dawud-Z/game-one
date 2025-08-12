@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shootem.io</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(45deg, #1a1a2e, #16213e);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #gameCanvas {
+            display: block;
+            background: #0f0f23;
+            border: 2px solid #333;
+        }
+
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        #healthBar {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 200px;
+            height: 20px;
+            background: #333;
+            border: 2px solid #666;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        #healthFill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4444, #ffff44, #44ff44);
+            width: 100%;
+            transition: width 0.3s ease;
+        }
+
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        #leaderboard {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 200px;
+        }
+
+        #leaderboard h3 {
+            margin-bottom: 10px;
+            color: #ffff44;
+            text-align: center;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 3px 0;
+        }
+
+        #killFeed {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+        }
+
+        .kill-message {
+            background: rgba(255,68,68,0.8);
+            padding: 5px 10px;
+            margin: 2px 0;
+            border-radius: 15px;
+            animation: fadeOut 3s ease-out forwards;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: translateY(0); }
+            70% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-20px); }
+        }
+
+        #connectionStatus {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        .connected { background: rgba(68,255,68,0.8); }
+        .disconnected { background: rgba(255,68,68,0.8); }
+        .connecting { background: rgba(255,255,68,0.8); }
+
+        #mobileControls {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 200px;
+            display: none;
+            pointer-events: auto;
+        }
+
+        .joystick {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .joystick-handle {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.1s ease;
+        }
+
+        #moveJoystick {
+            bottom: 50px;
+            left: 30px;
+        }
+
+        #shootButton {
+            position: absolute;
+            bottom: 50px;
+            right: 30px;
+            width: 80px;
+            height: 80px;
+            background: rgba(255,68,68,0.6);
+            border: 3px solid rgba(255,68,68,0.8);
+            border-radius: 50%;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        @media (max-width: 768px) {
+            #mobileControls { display: block; }
+        }
+
+        #respawnScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+        }
+
+        #respawnContent {
+            text-align: center;
+            color: white;
+        }
+
+        #respawnTimer {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ff4444;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui">
+            <div id="score">Score: 0</div>
+            
+            <div id="healthBar">
+                <div id="healthFill"></div>
+            </div>
+            
+            <div id="leaderboard">
+                <h3>🏆 Leaderboard</h3>
+                <div id="leaderboardList"></div>
+            </div>
+            
+            <div id="killFeed"></div>
+            
+            <div id="connectionStatus" class="connecting">Connecting...</div>
+        </div>
+
+        <div id="mobileControls">
+            <div id="moveJoystick" class="joystick">
+                <div class="joystick-handle"></div>
+            </div>
+            <button id="shootButton">FIRE</button>
+        </div>
+
+        <div id="respawnScreen">
+            <div id="respawnContent">
+                <h2>You were destroyed!</h2>
+                <div id="respawnTimer">5</div>
+                <p>Respawning soon...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script>
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.socket = null;
+                
+                this.players = new Map();
+                this.bullets = new Map();
+                this.myId = null;
+                
+                this.keys = {};
+                this.mouse = { x: 0, y: 0, down: false };
+                this.lastShot = 0;
+                
+                this.camera = { x: 0, y: 0 };
+                this.worldSize = { width: 3000, height: 3000 };
+                
+                this.score = 0;
+                this.health = 100;
+                this.maxHealth = 100;
+                
+                this.setupCanvas();
+                this.setupControls();
+                this.setupMobileControls();
+                this.connectToServer();
+                this.startGameLoop();
+            }
+
+            setupCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                window.addEventListener('resize', () => {
+                    this.canvas.width = window.innerWidth;
+                    this.canvas.height = window.innerHeight;
+                });
+            }
+
+            setupControls() {
+                document.addEventListener('keydown', (e) => {
+                    this.keys[e.key.toLowerCase()] = true;
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    this.keys[e.key.toLowerCase()] = false;
+                });
+
+                this.canvas.addEventListener('mousemove', (e) => {
+                    this.mouse.x = e.clientX;
+                    this.mouse.y = e.clientY;
+                });
+
+                this.canvas.addEventListener('mousedown', () => {
+                    this.mouse.down = true;
+                });
+
+                this.canvas.addEventListener('mouseup', () => {
+                    this.mouse.down = false;
+                });
+
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            }
+
+            setupMobileControls() {
+                // Mobile joystick implementation
+                const moveJoystick = document.getElementById('moveJoystick');
+                const shootButton = document.getElementById('shootButton');
+                
+                let joystickActive = false;
+                let joystickCenter = { x: 0, y: 0 };
+                
+                const handleJoystickStart = (e) => {
+                    joystickActive = true;
+                    const rect = moveJoystick.getBoundingClientRect();
+                    joystickCenter.x = rect.left + rect.width / 2;
+                    joystickCenter.y = rect.top + rect.height / 2;
+                };
+                
+                const handleJoystickMove = (e) => {
+                    if (!joystickActive) return;
+                    
+                    const touch = e.touches ? e.touches[0] : e;
+                    const dx = touch.clientX - joystickCenter.x;
+                    const dy = touch.clientY - joystickCenter.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const maxDistance = 30;
+                    
+                    if (distance <= maxDistance) {
+                        const handle = moveJoystick.querySelector('.joystick-handle');
+                        handle.style.transform = `translate(${dx}px, ${dy}px)`;
+                        
+                        // Convert to movement
+                        const intensity = distance / maxDistance;
+                        this.keys['w'] = dy < -5;
+                        this.keys['s'] = dy > 5;
+                        this.keys['a'] = dx < -5;
+                        this.keys['d'] = dx > 5;
+                    }
+                };
+                
+                const handleJoystickEnd = () => {
+                    joystickActive = false;
+                    const handle = moveJoystick.querySelector('.joystick-handle');
+                    handle.style.transform = 'translate(-50%, -50%)';
+                    this.keys['w'] = this.keys['s'] = this.keys['a'] = this.keys['d'] = false;
+                };
+
+                moveJoystick.addEventListener('touchstart', handleJoystickStart);
+                moveJoystick.addEventListener('mousedown', handleJoystickStart);
+                
+                document.addEventListener('touchmove', handleJoystickMove);
+                document.addEventListener('mousemove', handleJoystickMove);
+                
+                document.addEventListener('touchend', handleJoystickEnd);
+                document.addEventListener('mouseup', handleJoystickEnd);
+
+                shootButton.addEventListener('touchstart', () => this.mouse.down = true);
+                shootButton.addEventListener('mousedown', () => this.mouse.down = true);
+                shootButton.addEventListener('touchend', () => this.mouse.down = false);
+                shootButton.addEventListener('mouseup', () => this.mouse.down = false);
+            }
+
+            connectToServer() {
+                // For development, use localhost. Change this to your deployed server URL
+                const serverUrl = window.location.hostname === 'localhost' ? 
+                    'ws://localhost:3000' : 'wss://my-game-server-production.up.railway.app';
+                
+                this.socket = io(serverUrl);
+                
+                this.socket.on('connect', () => {
+                    this.updateConnectionStatus('connected', 'Connected');
+                    this.myId = this.socket.id;
+                });
+
+                this.socket.on('disconnect', () => {
+                    this.updateConnectionStatus('disconnected', 'Disconnected');
+                });
+
+                this.socket.on('gameState', (gameState) => {
+                    this.players = new Map(Object.entries(gameState.players));
+                    this.bullets = new Map(Object.entries(gameState.bullets));
+                });
+
+                this.socket.on('playerJoined', (player) => {
+                    this.players.set(player.id, player);
+                });
+
+                this.socket.on('playerLeft', (playerId) => {
+                    this.players.delete(playerId);
+                });
+
+                this.socket.on('playerUpdate', (player) => {
+                    this.players.set(player.id, player);
+                    
+                    if (player.id === this.myId) {
+                        this.health = player.health;
+                        this.score = player.score;
+                        this.updateUI();
+                    }
+                });
+
+                this.socket.on('bulletUpdate', (bullets) => {
+                    this.bullets = new Map(Object.entries(bullets));
+                });
+
+                this.socket.on('playerKilled', (data) => {
+                    this.showKillMessage(data.killer, data.victim);
+                    
+                    if (data.victim === this.myId) {
+                        this.showRespawnScreen();
+                    }
+                });
+
+                this.socket.on('leaderboard', (leaderboard) => {
+                    this.updateLeaderboard(leaderboard);
+                });
+            }
+
+            updateConnectionStatus(status, message) {
+                const statusElement = document.getElementById('connectionStatus');
+                statusElement.className = status;
+                statusElement.textContent = message;
+            }
+
+            startGameLoop() {
+                const gameLoop = () => {
+                    this.update();
+                    this.render();
+                    requestAnimationFrame(gameLoop);
+                };
+                gameLoop();
+            }
+
+            update() {
+                if (!this.socket || !this.myId) return;
+
+                const player = this.players.get(this.myId);
+                if (!player || player.health <= 0) return;
+
+                // Handle movement
+                const input = {
+                    up: this.keys['w'] || this.keys['arrowup'],
+                    down: this.keys['s'] || this.keys['arrowdown'],
+                    left: this.keys['a'] || this.keys['arrowleft'],
+                    right: this.keys['d'] || this.keys['arrowright'],
+                    mouseX: this.mouse.x + this.camera.x,
+                    mouseY: this.mouse.y + this.camera.y,
+                    shooting: this.mouse.down
+                };
+
+                this.socket.emit('playerInput', input);
+
+                // Update camera to follow player
+                if (player) {
+                    this.camera.x = player.x - this.canvas.width / 2;
+                    this.camera.y = player.y - this.canvas.height / 2;
+                    
+                    // Keep camera within world bounds
+                    this.camera.x = Math.max(0, Math.min(this.worldSize.width - this.canvas.width, this.camera.x));
+                    this.camera.y = Math.max(0, Math.min(this.worldSize.height - this.canvas.height, this.camera.y));
+                }
+            }
+
+            render() {
+                // Clear canvas
+                this.ctx.fillStyle = '#0f0f23';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw grid
+                this.drawGrid();
+
+                // Draw players
+                for (const [id, player] of this.players) {
+                    this.drawPlayer(player, id === this.myId);
+                }
+
+                // Draw bullets
+                for (const [id, bullet] of this.bullets) {
+                    this.drawBullet(bullet);
+                }
+
+                // Draw world bounds
+                this.drawWorldBounds();
+            }
+
+            drawGrid() {
+                const gridSize = 100;
+                this.ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                this.ctx.lineWidth = 1;
+
+                for (let x = -this.camera.x % gridSize; x < this.canvas.width; x += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+
+                for (let y = -this.camera.y % gridSize; y < this.canvas.height; y += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
+            }
+
+            drawPlayer(player, isMe) {
+                const screenX = player.x - this.camera.x;
+                const screenY = player.y - this.camera.y;
+
+                // Skip if off screen
+                if (screenX < -50 || screenX > this.canvas.width + 50 || 
+                    screenY < -50 || screenY > this.canvas.height + 50) return;
+
+                this.ctx.save();
+                this.ctx.translate(screenX, screenY);
+                this.ctx.rotate(player.rotation);
+
+                // Draw car body
+                this.ctx.fillStyle = isMe ? '#44ff44' : player.color || '#ff4444';
+                this.ctx.fillRect(-20, -10, 40, 20);
+
+                // Draw car details
+                this.ctx.fillStyle = '#333';
+                this.ctx.fillRect(-15, -8, 10, 16); // Front windshield area
+                this.ctx.fillRect(5, -8, 10, 16);   // Rear area
+
+                // Draw gun barrel
+                this.ctx.fillStyle = '#666';
+                this.ctx.fillRect(15, -2, 25, 4);
+
+                this.ctx.restore();
+
+                // Draw health bar
+                if (player.health < player.maxHealth) {
+                    const barWidth = 40;
+                    const barHeight = 6;
+                    const healthPercent = player.health / player.maxHealth;
+
+                    this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    this.ctx.fillRect(screenX - barWidth/2, screenY - 35, barWidth, barHeight);
+
+                    this.ctx.fillStyle = healthPercent > 0.5 ? '#44ff44' : 
+                                       healthPercent > 0.25 ? '#ffff44' : '#ff4444';
+                    this.ctx.fillRect(screenX - barWidth/2, screenY - 35, barWidth * healthPercent, barHeight);
+                }
+
+                // Draw name
+                this.ctx.fillStyle = 'white';
+                this.ctx.font = '14px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(player.name || 'Player', screenX, screenY - 40);
+            }
+
+            drawBullet(bullet) {
+                const screenX = bullet.x - this.camera.x;
+                const screenY = bullet.y - this.camera.y;
+
+                // Skip if off screen
+                if (screenX < 0 || screenX > this.canvas.width || 
+                    screenY < 0 || screenY > this.canvas.height) return;
+
+                this.ctx.fillStyle = '#ffff44';
+                this.ctx.beginPath();
+                this.ctx.arc(screenX, screenY, 3, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // Draw trail
+                this.ctx.strokeStyle = 'rgba(255,255,68,0.5)';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(screenX, screenY);
+                this.ctx.lineTo(screenX - bullet.vx * 0.1, screenY - bullet.vy * 0.1);
+                this.ctx.stroke();
+            }
+
+            drawWorldBounds() {
+                this.ctx.strokeStyle = '#ff4444';
+                this.ctx.lineWidth = 5;
+                this.ctx.setLineDash([10, 10]);
+
+                // Draw world boundary
+                const boundaryX = -this.camera.x;
+                const boundaryY = -this.camera.y;
+                const boundaryWidth = this.worldSize.width;
+                const boundaryHeight = this.worldSize.height;
+
+                this.ctx.strokeRect(boundaryX, boundaryY, boundaryWidth, boundaryHeight);
+                this.ctx.setLineDash([]);
+            }
+
+            updateUI() {
+                document.getElementById('score').textContent = `Score: ${this.score}`;
+                
+                const healthPercent = (this.health / this.maxHealth) * 100;
+                document.getElementById('healthFill').style.width = `${healthPercent}%`;
+            }
+
+            updateLeaderboard(leaderboard) {
+                const list = document.getElementById('leaderboardList');
+                list.innerHTML = '';
+
+                leaderboard.forEach((player, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'leaderboard-item';
+                    item.innerHTML = `
+                        <span>${index + 1}. ${player.name}</span>
+                        <span>${player.score}</span>
+                    `;
+                    list.appendChild(item);
+                });
+            }
+
+            showKillMessage(killer, victim) {
+                const killFeed = document.getElementById('killFeed');
+                const message = document.createElement('div');
+                message.className = 'kill-message';
+                message.textContent = `${killer} eliminated ${victim}`;
+                killFeed.appendChild(message);
+
+                setTimeout(() => {
+                    killFeed.removeChild(message);
+                }, 3000);
+            }
+
+            showRespawnScreen() {
+                const respawnScreen = document.getElementById('respawnScreen');
+                const respawnTimer = document.getElementById('respawnTimer');
+                
+                respawnScreen.style.display = 'flex';
+                
+                let timeLeft = 5;
+                respawnTimer.textContent = timeLeft;
+                
+                const countdown = setInterval(() => {
+                    timeLeft--;
+                    respawnTimer.textContent = timeLeft;
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(countdown);
+                        respawnScreen.style.display = 'none';
+                        this.socket.emit('respawn');
+                    }
+                }, 1000);
+            }
+        }
+
+        // Start the game when page loads
+        window.addEventListener('load', () => {
+            new Game();
+        });
+    </script>
+</body>
+</html>
