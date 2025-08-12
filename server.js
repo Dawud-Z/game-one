@@ -12,7 +12,6 @@ const io = socketIo(server, {
     }
 });
 
-<<<<<<< HEAD
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -109,7 +108,7 @@ class Bullet {
 
     update(deltaTime) {
         this.x += this.vx * deltaTime;
-        this.y += this.vy * deltaTime;
+        this.y += vy * deltaTime;
 
         // Remove if out of bounds or too old
         return this.x < 0 || this.x > WORLD_SIZE.width || 
@@ -232,6 +231,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
-=======
-// [rest of the server code I provided earlier]
->>>>>>> aae029a368cf46f5c9d4f40139a8238da0c2922c
